@@ -49,6 +49,8 @@ const StudentProgress = () => {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<string>('MONTH');
   const [progressData, setProgressData] = useState<any>({});
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -60,7 +62,10 @@ const StudentProgress = () => {
       if (studentId) {
         const res = await assignmentApi.getStudentProgress(studentId, { timeRange });
         if (res.data.success) {
-          setProgressData(res.data.data || {});
+          const data = res.data.data || {};
+          setProgressData(data);
+          setChartData(data.scoreTrend || []);
+          setRecentAssignments(data.recentAssignments || []);
         }
       }
     } catch (error) {
@@ -69,41 +74,6 @@ const StudentProgress = () => {
       setLoading(false);
     }
   };
-
-  const weekData = [
-    { name: '第1周', score: 75, classAvg: 72 },
-    { name: '第2周', score: 78, classAvg: 74 },
-    { name: '第3周', score: 82, classAvg: 76 },
-    { name: '第4周', score: 85, classAvg: 78 },
-  ];
-
-  const monthData = [
-    { name: '1月', score: 70, classAvg: 68 },
-    { name: '2月', score: 75, classAvg: 72 },
-    { name: '3月', score: 80, classAvg: 75 },
-    { name: '4月', score: 85, classAvg: 78 },
-    { name: '5月', score: 88, classAvg: 80 },
-    { name: '6月', score: 92, classAvg: 82 },
-  ];
-
-  const semesterData = [
-    { name: '第1月', score: 65, classAvg: 63 },
-    { name: '第2月', score: 72, classAvg: 68 },
-    { name: '第3月', score: 78, classAvg: 73 },
-    { name: '第4月', score: 83, classAvg: 77 },
-    { name: '第5月', score: 88, classAvg: 80 },
-    { name: '第6月', score: 93, classAvg: 83 },
-  ];
-
-  const chartData = timeRange === 'WEEK' ? weekData : timeRange === 'MONTH' ? monthData : semesterData;
-
-  const recentAssignments = [
-    { id: 1, title: '钢琴基础练习-第5课', score: 92, totalScore: 100, submittedAt: '2024-01-15' },
-    { id: 2, title: '乐理知识测试', score: 88, totalScore: 100, submittedAt: '2024-01-12' },
-    { id: 3, title: '曲目演奏作业', score: 95, totalScore: 100, submittedAt: '2024-01-10' },
-    { id: 4, title: '视唱练耳练习', score: 85, totalScore: 100, submittedAt: '2024-01-08' },
-    { id: 5, title: '和弦识别作业', score: 90, totalScore: 100, submittedAt: '2024-01-05' },
-  ];
 
   if (loading) {
     return (

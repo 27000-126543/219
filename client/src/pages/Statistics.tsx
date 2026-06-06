@@ -64,28 +64,16 @@ const Statistics = () => {
     try {
       const overviewRes = await statisticsApi.getOverview();
       if (overviewRes.data.success) {
-        setOverview(overviewRes.data.data || {});
-      }
-
-      const perfRes = await statisticsApi.getTeacherPerformance();
-      if (perfRes.data.success) {
-        setPerformances(perfRes.data.data || []);
+        const data = overviewRes.data.data || {};
+        setOverview(data.overview || {});
+        setClassData(data.classStats || []);
+        setPerformances(data.performances || []);
       }
 
       const subjectsRes = await courseApi.getSubjects();
       if (subjectsRes.data.success) {
         setSubjects(subjectsRes.data.data || []);
       }
-
-      const mockClassData = [
-        { name: '钢琴A班', renewalRate: 85, scoreImprove: 12, satisfaction: 4.8 },
-        { name: '钢琴B班', renewalRate: 78, scoreImprove: 8, satisfaction: 4.5 },
-        { name: '舞蹈A班', renewalRate: 92, scoreImprove: 15, satisfaction: 4.9 },
-        { name: '舞蹈B班', renewalRate: 88, scoreImprove: 11, satisfaction: 4.7 },
-        { name: '美术A班', renewalRate: 80, scoreImprove: 9, satisfaction: 4.6 },
-        { name: '声乐A班', renewalRate: 86, scoreImprove: 13, satisfaction: 4.8 },
-      ];
-      setClassData(mockClassData);
     } catch (error) {
       console.error('Load statistics failed:', error);
     } finally {
@@ -303,13 +291,7 @@ const Statistics = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={[
-                        { name: '钢琴', value: 80 },
-                        { name: '舞蹈', value: 65 },
-                        { name: '美术', value: 50 },
-                        { name: '声乐', value: 45 },
-                        { name: '书法', value: 30 },
-                      ]}
+                      data={overview.subjectStats || []}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -334,13 +316,7 @@ const Statistics = () => {
           <Card className="card-shadow">
             <Table
               columns={performanceColumns}
-              dataSource={performances.length > 0 ? performances : [
-                { rank: 1, teacher: { user: { realName: '张老师' } }, classCompletionRate: 98, studentConversionRate: 85, refundRate: 2, avgSatisfaction: 4.9, avgScore: 92 },
-                { rank: 2, teacher: { user: { realName: '李老师' } }, classCompletionRate: 96, studentConversionRate: 80, refundRate: 3, avgSatisfaction: 4.8, avgScore: 90 },
-                { rank: 3, teacher: { user: { realName: '王老师' } }, classCompletionRate: 95, studentConversionRate: 78, refundRate: 2.5, avgSatisfaction: 4.7, avgScore: 88 },
-                { rank: 4, teacher: { user: { realName: '刘老师' } }, classCompletionRate: 92, studentConversionRate: 75, refundRate: 4, avgSatisfaction: 4.6, avgScore: 86 },
-                { rank: 5, teacher: { user: { realName: '陈老师' } }, classCompletionRate: 90, studentConversionRate: 72, refundRate: 5, avgSatisfaction: 4.5, avgScore: 85 },
-              ]}
+              dataSource={performances}
               rowKey="id"
               pagination={{ pageSize: 10 }}
             />

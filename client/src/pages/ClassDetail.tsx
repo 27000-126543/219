@@ -54,6 +54,11 @@ const ClassDetail = () => {
   const [loading, setLoading] = useState(true);
   const [classInfo, setClassInfo] = useState<any>({});
   const [statistics, setStatistics] = useState<any>({});
+  const [students, setStudents] = useState<any[]>([]);
+  const [attendanceTrend, setAttendanceTrend] = useState<any[]>([]);
+  const [scoreTrend, setScoreTrend] = useState<any[]>([]);
+  const [liveSessions, setLiveSessions] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -70,7 +75,13 @@ const ClassDetail = () => {
 
         const statsRes = await classApi.getClassStatistics(id);
         if (statsRes.data.success) {
-          setStatistics(statsRes.data.data || {});
+          const data = statsRes.data.data || {};
+          setStatistics(data);
+          setStudents(data.students || []);
+          setAttendanceTrend(data.attendanceTrend || []);
+          setScoreTrend(data.scoreTrend || []);
+          setLiveSessions(data.liveSessions || []);
+          setAssignments(data.assignments || []);
         }
       }
     } catch (error) {
@@ -79,45 +90,6 @@ const ClassDetail = () => {
       setLoading(false);
     }
   };
-
-  const attendanceTrend = [
-    { name: '第1周', attendance: 92, submission: 88 },
-    { name: '第2周', attendance: 95, submission: 90 },
-    { name: '第3周', attendance: 88, submission: 85 },
-    { name: '第4周', attendance: 93, submission: 92 },
-    { name: '第5周', attendance: 96, submission: 94 },
-    { name: '第6周', attendance: 90, submission: 88 },
-  ];
-
-  const scoreTrend = [
-    { name: '第1月', avgScore: 75, maxScore: 92, minScore: 60 },
-    { name: '第2月', avgScore: 78, maxScore: 94, minScore: 62 },
-    { name: '第3月', avgScore: 82, maxScore: 96, minScore: 65 },
-    { name: '第4月', avgScore: 85, maxScore: 98, minScore: 68 },
-  ];
-
-  const students = [
-    { id: 1, name: '张三', avatar: '', studentId: 'S2024001', attendanceRate: 95, avgScore: 92, status: 'normal' },
-    { id: 2, name: '李四', avatar: '', studentId: 'S2024002', attendanceRate: 88, avgScore: 85, status: 'warning' },
-    { id: 3, name: '王五', avatar: '', studentId: 'S2024003', attendanceRate: 100, avgScore: 95, status: 'normal' },
-    { id: 4, name: '赵六', avatar: '', studentId: 'S2024004', attendanceRate: 75, avgScore: 70, status: 'danger' },
-    { id: 5, name: '钱七', avatar: '', studentId: 'S2024005', attendanceRate: 92, avgScore: 88, status: 'normal' },
-  ];
-
-  const liveSessions = [
-    { id: 1, title: '钢琴基础-第1课', startTime: '2024-01-15 14:00', endTime: '2024-01-15 15:30', status: 'COMPLETED', attendance: 18 },
-    { id: 2, title: '钢琴基础-第2课', startTime: '2024-01-17 14:00', endTime: '2024-01-17 15:30', status: 'COMPLETED', attendance: 20 },
-    { id: 3, title: '钢琴基础-第3课', startTime: '2024-01-19 14:00', endTime: '2024-01-19 15:30', status: 'COMPLETED', attendance: 19 },
-    { id: 4, title: '钢琴基础-第4课', startTime: '2024-01-22 14:00', endTime: '2024-01-22 15:30', status: 'SCHEDULED', attendance: 0 },
-    { id: 5, title: '钢琴基础-第5课', startTime: '2024-01-24 14:00', endTime: '2024-01-24 15:30', status: 'SCHEDULED', attendance: 0 },
-  ];
-
-  const assignments = [
-    { id: 1, title: '音阶练习作业', dueDate: '2024-01-16', submitted: 18, total: 20, avgScore: 88 },
-    { id: 2, title: '曲目演奏作业', dueDate: '2024-01-18', submitted: 19, total: 20, avgScore: 92 },
-    { id: 3, title: '乐理知识测试', dueDate: '2024-01-20', submitted: 17, total: 20, avgScore: 85 },
-    { id: 4, title: '视唱练耳练习', dueDate: '2024-01-23', submitted: 10, total: 20, avgScore: 0 },
-  ];
 
   const studentColumns = [
     {

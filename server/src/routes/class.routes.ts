@@ -6,8 +6,8 @@ import {
   enrollClass,
   dropClass,
   getMyClasses,
+  getClassStatistics,
 } from '../controllers/class.controller';
-import { getClassStatistics } from '../controllers/alert.controller';
 import { authMiddleware, requireRoles } from '../middleware/auth';
 import { Role } from '@prisma/client';
 
