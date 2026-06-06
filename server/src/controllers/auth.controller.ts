@@ -69,7 +69,8 @@ export const registerUser = async (req: AuthRequest, res: Response) => {
   try {
     const { username, email, password, realName, role, phone, gender } = req.body as RegisterUserDto;
 
-    if (![Role.TEACHER, Role.HEAD_TEACHER, Role.ADMIN, Role.PRINCIPAL].includes(role)) {
+    const allowedRoles = [Role.TEACHER, Role.HEAD_TEACHER, Role.ADMIN, Role.PRINCIPAL] as Role[];
+    if (!allowedRoles.includes(role)) {
       return errorResponse(res, '无效的角色类型', 400);
     }
 

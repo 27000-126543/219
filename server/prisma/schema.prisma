@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -172,7 +173,7 @@ model TeacherProfile {
   user           User     @relation(fields: [userId], references: [id])
   teacherId      String   @unique
   bio            String?
-  specialties    String[]
+  specialties    Json?
   yearsExperience Int?
   certification  String?
   hourlyRate     Float?
@@ -324,7 +325,7 @@ model Classroom {
   name      String
   code      String  @unique
   capacity  Int
-  equipment String[]
+  equipment Json?
   isActive  Boolean @default(true)
 
   @@map("classrooms")
@@ -349,6 +350,7 @@ model LiveSession {
   
   attendanceRecords SessionAttendance[]
   remindersSent   Boolean       @default(false)
+  scheduleChanges ScheduleChange[]
 
   @@map("live_sessions")
 }
@@ -552,6 +554,7 @@ model Notification {
 model ScheduleChange {
   id               String              @id @default(uuid())
   sessionId        String?
+  session          LiveSession?        @relation(fields: [sessionId], references: [id])
   originalClassId  String?
   newClassId       String?
   applicantId      String

@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
     role: Role;
     username: string;
   };
+  params: Record<string, string>;
 }
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {

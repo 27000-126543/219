@@ -104,7 +104,7 @@ export const publishExam = async (req: AuthRequest, res: Response) => {
       where: { id },
       data: { status: ExamStatus.PUBLISHED },
       include: {
-        class: { include: { enrollments: { include: { student: { include: { user: true } } } } },
+        class: { include: { enrollments: { include: { student: { include: { user: true } } } } } },
       },
     });
 

@@ -128,8 +128,18 @@ export const updateSessionStatus = async (req: AuthRequest, res: Response) => {
       where: { id },
       data: { status },
       include: {
-        class: { include: { enrollments: { include: { student: { include: { user: true } } } } },
-      },
+        class: {
+          include: {
+            enrollments: {
+              include: {
+                student: {
+                  include: { user: true }
+                }
+              }
+            }
+          }
+        }
+      }
     });
 
     if (status === SessionStatus.LIVE) {

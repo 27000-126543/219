@@ -82,14 +82,22 @@ export const reviewScheduleChange = async (req: AuthRequest, res: Response) => {
             include: {
               class: {
                 include: {
-                  enrollments: { include: { student: { include: { user: true } } },
-                  headTeacher: true,
-                },
+                  enrollments: {
+                    include: {
+                      student: {
+                        include: { user: true }
+                      }
+                    }
+                  },
+                  headTeacher: true
+                }
               },
-              teacher: { include: { user: true } },
-            },
-          },
-        },
+              teacher: {
+                include: { user: true }
+              }
+            }
+          }
+        }
       });
 
       if (!scheduleChange?.session) {
