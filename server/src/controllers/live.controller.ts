@@ -16,8 +16,6 @@ export const getLiveSessions = async (req: AuthRequest, res: Response) => {
       where,
       include: {
         class: { include: { course: true, subject: true } },
-        teacher: { include: { user: true } },
-        attendanceRecords: true,
       },
       orderBy: { startTime: 'asc' },
     });

@@ -12,38 +12,57 @@ export const getPrincipalOverview = async (req: AuthRequest, res: Response) => {
 
     const subjects = await prisma.subject.findMany({
       where: { isActive: true },
-      include: {
-        _count: { select: { courses: true } },
-        courses: { include: { classes: { where: { status: 'ACTIVE' } } } },
-      },
     });
 
-    const subjectStats = subjects.map((s) => ({
-      name: s.name,
-      value: s._count.courses + s.courses.reduce((sum, c) => sum + c.classes.length, 0),
-      color: s.color || '#1890ff',
-    }));
+    const subjectStats = [];
+    for (const s of subjects) {
+      const courseCount = await prisma.course.count({ where: { subjectId: s.id, isActive: true } });
+      const classCount = await prisma.class.count({ where: { subjectId: s.id, status: { in: ['ACTIVE', 'FULL'] } } });
+      subjectStats.push({
+        name: s.name,
+        value: courseCount + classCount,
+        color: s.color || '#1890ff',
+      });
+    }
 
     const activeClasses = await prisma.class.findMany({
       where: { status: { in: ['ACTIVE', 'FULL'] } },
-      include: {
-        subject: true,
-        _count: { select: { enrollments: { where: { status: 'CONFIRMED' } } } },
-      },
+      include: { subject: true },
     });
 
-    const classStats = activeClasses.slice(0, 8).map((c) => ({
-      name: c.name,
-      students: c._count.enrollments,
-      maxStudents: c.maxStudents,
-      subject: c.subject?.name || '',
-    }));
+    const classStats = [];
+    for (const c of activeClasses.slice(0, 8)) {
+      const enrollCount = await prisma.classEnrollment.count({ where: { classId: c.id, status: 'CONFIRMED' } });
+      classStats.push({
+        name: c.name,
+        students: enrollCount,
+        maxStudents: c.maxStudents,
+        subject: c.subject?.name || '',
+      });
+    }
 
     const performances = await prisma.teacherPerformance.findMany({
-      include: { teacher: { include: { user: true } } },
-      orderBy: { month: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 10,
     });
+    
+    const performancesWithTeacher = [];
+    for (const p of performances) {
+      const teacher = await prisma.teacherProfile.findUnique({
+        where: { id: p.teacherId },
+        include: { user: true },
+      });
+      performancesWithTeacher.push({
+        id: p.id,
+        teacherName: teacher?.user?.realName || '',
+        subject: teacher?.subject || '',
+        completionRate: p.classCompletionRate || 0,
+        conversionRate: p.studentConversionRate || 0,
+        refundRate: p.refundRate || 0,
+        satisfactionScore: p.avgSatisfaction || 0,
+        totalScore: p.avgScore || 0,
+      });
+    }
 
     const enrollmentTrend = [
       { name: '1月', students: 120, classes: 8 },
@@ -55,6 +74,18 @@ export const getPrincipalOverview = async (req: AuthRequest, res: Response) => {
     ];
 
     return successResponse(res, {
+      overview: {
+        totalStudents,
+        totalTeachers,
+        totalClasses,
+        totalCourses,
+        avgAttendanceRate: 91,
+        avgScore: 86,
+        renewalRate: 78,
+        avgRenewalRate: 78,
+        avgSatisfaction: 4.7,
+        subjectStats,
+      },
       stats: {
         totalStudents,
         totalTeachers,
@@ -63,20 +94,12 @@ export const getPrincipalOverview = async (req: AuthRequest, res: Response) => {
         avgAttendanceRate: 91,
         avgScore: 86,
         renewalRate: 78,
+        avgRenewalRate: 78,
+        avgSatisfaction: 4.7,
       },
       subjectStats,
       classStats,
-      performances: performances.map((p) => ({
-        id: p.id,
-        teacherName: p.teacher.user.realName,
-        subject: p.teacher.subject,
-        completionRate: p.completionRate,
-        conversionRate: p.conversionRate,
-        refundRate: p.refundRate,
-        satisfactionScore: p.satisfactionScore,
-        totalScore: p.totalScore,
-        month: p.month,
-      })),
+      performances: performancesWithTeacher,
       enrollmentTrend,
     });
   } catch (error) {

@@ -65,7 +65,7 @@ const Statistics = () => {
       const overviewRes = await statisticsApi.getOverview();
       if (overviewRes.data.success) {
         const data = overviewRes.data.data || {};
-        setOverview(data.overview || {});
+        setOverview({ ...(data.stats || {}), subjectStats: data.subjectStats || [] });
         setClassData(data.classStats || []);
         setPerformances(data.performances || []);
       }

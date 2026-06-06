@@ -13,9 +13,7 @@ export const getAssignments = async (req: AuthRequest, res: Response) => {
       where,
       include: {
         class: { include: { course: true, subject: true } },
-        teacher: { include: { user: true } },
         questions: true,
-        _count: { select: { submissions: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

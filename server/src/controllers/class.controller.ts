@@ -200,34 +200,31 @@ export const dropClass = async (req: AuthRequest, res: Response) => {
 export const getMyClasses = async (req: AuthRequest, res: Response) => {
   try {
     const role = req.user!.role;
-    let classes: any[] = [];
+    let where: any = {};
 
     if (role === 'STUDENT') {
       const student = await prisma.studentProfile.findUnique({ where: { userId: req.user!.userId } });
       if (student) {
-        classes = await prisma.class.findMany({
-          where: { enrollments: { some: { studentId: student.id, status: 'CONFIRMED' } } },
-          include: { course: true, subject: true, teacher: { include: { user: true } } },
-        });
+        where = { enrollments: { some: { studentId: student.id, status: 'CONFIRMED' } } };
+      } else {
+        return successResponse(res, []);
       }
     } else if (role === 'TEACHER') {
       const teacher = await prisma.teacherProfile.findUnique({ where: { userId: req.user!.userId } });
       if (teacher) {
-        classes = await prisma.class.findMany({
-          where: { teacherId: teacher.id },
-          include: { course: true, subject: true },
-        });
+        where = { teacherId: teacher.id };
+      } else {
+        return successResponse(res, []);
       }
     } else if (role === 'HEAD_TEACHER') {
-      classes = await prisma.class.findMany({
-        where: { headTeacherId: req.user!.userId },
-        include: { course: true, subject: true, teacher: { include: { user: true } } },
-      });
-    } else {
-      classes = await prisma.class.findMany({
-        include: { course: true, subject: true, teacher: { include: { user: true } } },
-      });
+      where = { headTeacherId: req.user!.userId };
     }
+
+    const classes = await prisma.class.findMany({
+      where,
+      include: { course: true, subject: true },
+      orderBy: { createdAt: 'desc' },
+    });
 
     return successResponse(res, classes);
   } catch (error) {
