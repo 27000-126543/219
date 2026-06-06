@@ -2,189 +2,158 @@ import { Response } from 'express';
 import prisma from '../config/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { successResponse, errorResponse } from '../utils/response';
-import { CreateScheduleChangeDto } from '../types';
-import { ScheduleChangeStatus, SessionStatus, NotificationType, Role } from '@prisma/client';
-import { createBulkNotifications, createNotification } from '../services/notification.service';
-
-export const createScheduleChange = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-    const { sessionId, originalClassId, newClassId, originalStartTime, originalEndTime, newStartTime, newEndTime, classroom, reason } = req.body as CreateScheduleChangeDto;
-
-    const scheduleChange = await prisma.scheduleChange.create({
-      data: {
-        sessionId,
-        originalClassId,
-        newClassId,
-        applicantId: userId!,
-        originalStartTime: originalStartTime ? new Date(originalStartTime) : undefined,
-        originalEndTime: originalEndTime ? new Date(originalEndTime) : undefined,
-        newStartTime: newStartTime ? new Date(newStartTime) : undefined,
-        newEndTime: newEndTime ? new Date(newEndTime) : undefined,
-        classroom,
-        reason,
-      },
-      include: {
-        applicant: true,
-      },
-    });
-
-    const admins = await prisma.user.findMany({
-      where: { role: { in: [Role.ADMIN, Role.PRINCIPAL] } },
-    });
-
-    await createBulkNotifications(
-      admins.map(a => a.id),
-      NotificationType.SCHEDULE_CHANGE,
-      '新的调课申请',
-      `收到新的调课申请，请及时处理`,
-      { scheduleChangeId: scheduleChange.id }
-    );
-
-    return successResponse(res, scheduleChange, '调课申请已提交');
-  } catch (error) {
-    return errorResponse(res, '提交调课申请失败: ' + (error as Error).message, 500);
-  }
-};
+import { sendNotification } from '../services/notification.service';
 
 export const getScheduleChanges = async (req: AuthRequest, res: Response) => {
   try {
-    const { status, applicantId } = req.query;
+    const { status, teacherId } = req.query;
     const where: any = {};
-    if (status) where.status = status;
-    if (applicantId) where.applicantId = applicantId;
+    if (status) where.status = status as string;
+    if (teacherId) where.teacherId = teacherId as string;
+
+    if (req.user?.role === 'TEACHER') {
+      const teacher = await prisma.teacherProfile.findUnique({ where: { userId: req.user.userId } });
+      if (teacher) where.teacherId = teacher.id;
+    }
 
     const changes = await prisma.scheduleChange.findMany({
       where,
       include: {
-        applicant: true,
-        session: { include: { class: { include: { course: true } } } },
+        class: { include: { course: true, subject: true } },
+        teacher: { include: { user: true } },
+        liveSession: true,
+        reviewedBy: true,
       },
       orderBy: { createdAt: 'desc' },
     });
+
     return successResponse(res, changes);
   } catch (error) {
-    return errorResponse(res, '获取调课申请失败: ' + (error as Error).message, 500);
+    return errorResponse(res, '获取调课列表失败: ' + (error as Error).message, 500);
+  }
+};
+
+export const getScheduleChangeById = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const change = await prisma.scheduleChange.findUnique({
+      where: { id },
+      include: {
+        class: { include: { course: true, subject: true } },
+        teacher: { include: { user: true } },
+        liveSession: true,
+        reviewedBy: true,
+      },
+    });
+
+    if (!change) {
+      return errorResponse(res, '调课申请不存在', 404);
+    }
+
+    return successResponse(res, change);
+  } catch (error) {
+    return errorResponse(res, '获取调课详情失败: ' + (error as Error).message, 500);
+  }
+};
+
+export const createScheduleChange = async (req: AuthRequest, res: Response) => {
+  try {
+    const { classId, liveSessionId, newStartTime, newEndTime, reason, newClassroom } = req.body;
+    const teacher = await prisma.teacherProfile.findUnique({ where: { userId: req.user!.userId } });
+
+    if (!teacher) {
+      return errorResponse(res, '教师信息不存在', 404);
+    }
+
+    const change = await prisma.scheduleChange.create({
+      data: {
+        classId,
+        teacherId: teacher.id,
+        liveSessionId,
+        newStartTime: new Date(newStartTime),
+        newEndTime: new Date(newEndTime),
+        newClassroom,
+        reason,
+        status: 'PENDING',
+      },
+    });
+
+    return successResponse(res, change, '调课申请提交成功');
+  } catch (error) {
+    return errorResponse(res, '提交调课申请失败: ' + (error as Error).message, 500);
   }
 };
 
 export const reviewScheduleChange = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
-    const { status, reviewNote } = req.body;
+    const { status, reviewComment } = req.body;
 
-    if (status === ScheduleChangeStatus.APPROVED) {
-      const scheduleChange = await prisma.scheduleChange.findUnique({
-        where: { id },
-        include: {
-          session: {
-            include: {
-              class: {
-                include: {
-                  enrollments: {
-                    include: {
-                      student: {
-                        include: { user: true }
-                      }
-                    }
-                  },
-                  headTeacher: true
-                }
-              },
-              teacher: {
-                include: { user: true }
-              }
-            }
-          }
-        }
-      });
+    const change = await prisma.scheduleChange.findUnique({
+      where: { id },
+      include: {
+        class: { include: { headTeacher: true } },
+        teacher: { include: { user: true } },
+        liveSession: true,
+      },
+    });
 
-      if (!scheduleChange?.session) {
-        return errorResponse(res, '调课申请或课程不存在', 404);
-      }
-
-      if (scheduleChange.newStartTime && scheduleChange.newEndTime) {
-        const conflictingSessions = await prisma.liveSession.findMany({
-          where: {
-            teacherId: scheduleChange.session.teacherId,
-            id: { not: scheduleChange.sessionId! },
-            status: { in: [SessionStatus.SCHEDULED, SessionStatus.LIVE] },
-            OR: [
-              {
-                AND: [
-                  { startTime: { lte: new Date(scheduleChange.newStartTime) } },
-                  { endTime: { gt: new Date(scheduleChange.newStartTime) } },
-                ],
-              },
-              {
-                AND: [
-                  { startTime: { lt: new Date(scheduleChange.newEndTime) } },
-                  { endTime: { gte: new Date(scheduleChange.newEndTime) } },
-                ],
-              },
-              {
-                AND: [
-                  { startTime: { gte: new Date(scheduleChange.newStartTime) } },
-                  { endTime: { lte: new Date(scheduleChange.newEndTime) } },
-                ],
-              },
-            ],
-          },
-        });
-
-        if (conflictingSessions.length > 0) {
-          return errorResponse(res, '新时段教师有课程冲突，无法通过审批', 400);
-        }
-
-        await prisma.liveSession.update({
-          where: { id: scheduleChange.sessionId! },
-          data: {
-            startTime: new Date(scheduleChange.newStartTime),
-            endTime: new Date(scheduleChange.newEndTime),
-            status: SessionStatus.RESCHEDULED,
-          },
-        });
-
-        const userIds = scheduleChange.session.class.enrollments
-          .filter(e => e.status === 'CONFIRMED')
-          .map(e => e.student.userId);
-
-        if (scheduleChange.session.class.headTeacherId) {
-          userIds.push(scheduleChange.session.class.headTeacherId);
-        }
-
-        await createBulkNotifications(
-          userIds,
-          NotificationType.SCHEDULE_CHANGE,
-          '课程时间调整通知',
-          `课程 "${scheduleChange.session.title}" 时间已调整为：${new Date(scheduleChange.newStartTime).toLocaleString()}`,
-          { sessionId: scheduleChange.sessionId }
-        );
-      }
+    if (!change) {
+      return errorResponse(res, '调课申请不存在', 404);
     }
 
     const updated = await prisma.scheduleChange.update({
       where: { id },
       data: {
         status,
-        reviewNote,
-        reviewedBy: userId,
+        reviewComment,
+        reviewedById: req.user!.userId,
         reviewedAt: new Date(),
-      },
-      include: {
-        applicant: true,
-        session: { include: { class: { include: { course: true } } } },
       },
     });
 
-    await createNotification(
-      updated.applicantId,
-      NotificationType.SCHEDULE_CHANGE,
-      `调课申请已${status === 'APPROVED' ? '通过' : '拒绝'}`,
-      `您的调课申请已${status === 'APPROVED' ? '通过' : '拒绝'}，${reviewNote || ''}`,
-      { scheduleChangeId: id }
-    );
+    if (status === 'APPROVED' && change.liveSession) {
+      await prisma.liveSession.update({
+        where: { id: change.liveSessionId! },
+        data: {
+          startTime: change.newStartTime,
+          endTime: change.newEndTime,
+        },
+      });
+
+      const enrollments = await prisma.classEnrollment.findMany({
+        where: { classId: change.classId, status: 'CONFIRMED' },
+        include: { student: { include: { user: true } } },
+      });
+      for (const enrollment of enrollments) {
+        if (enrollment.student?.userId) {
+          await sendNotification(
+            enrollment.student.userId,
+            'SCHEDULE_CHANGED',
+            '课程时间调整',
+            `您的课程时间已调整为：${change.newStartTime.toLocaleString()}`
+          );
+        }
+      }
+
+      if (change.class.headTeacher) {
+        await sendNotification(
+          change.class.headTeacher.id,
+          'SCHEDULE_CHANGED',
+          '班级课程调整',
+          `${change.class.course?.name}的课程时间已调整`
+        );
+      }
+    }
+
+    if (status === 'APPROVED' || status === 'REJECTED') {
+      await sendNotification(
+        change.teacher.userId,
+        'SCHEDULE_REVIEWED',
+        status === 'APPROVED' ? '调课已批准' : '调课已拒绝',
+        reviewComment || '请查看调课审核结果'
+      );
+    }
 
     return successResponse(res, updated, '审核完成');
   } catch (error) {

@@ -1,8 +1,6 @@
-import { Role, Gender, CourseLevel, ClassStatus, EnrollmentStatus, SessionStatus, AssignmentType, SubmissionStatus, ExamStatus, AlertType, AlertStatus, NotificationType, ScheduleChangeStatus, SemesterStatus } from '@prisma/client';
-
 export interface JwtPayload {
   userId: string;
-  role: Role;
+  role: string;
   username: string;
 }
 
@@ -12,7 +10,7 @@ export interface RegisterStudentDto {
   password: string;
   realName: string;
   phone?: string;
-  gender?: Gender;
+  gender?: string;
   birthDate?: Date;
   age?: number;
   grade?: string;
@@ -27,9 +25,9 @@ export interface RegisterUserDto {
   email: string;
   password: string;
   realName: string;
-  role: Role;
+  role: string;
   phone?: string;
-  gender?: Gender;
+  gender?: string;
 }
 
 export interface LoginDto {
@@ -43,7 +41,7 @@ export interface CreateCourseDto {
   teacherId?: string;
   name: string;
   description?: string;
-  level: CourseLevel;
+  level: string;
   minAge?: number;
   maxAge?: number;
   totalSessions?: number;
@@ -79,7 +77,7 @@ export interface CreateAssignmentDto {
   teacherId: string;
   title: string;
   description?: string;
-  type: AssignmentType;
+  type: string;
   totalScore?: number;
   dueDate: Date;
   questions?: Array<{
@@ -135,7 +133,7 @@ export interface CreateScheduleChangeDto {
 
 export interface FilterCoursesDto {
   subjectId?: string;
-  level?: CourseLevel;
+  level?: string;
   minAge?: number;
   maxAge?: number;
   search?: string;

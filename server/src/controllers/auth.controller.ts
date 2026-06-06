@@ -5,7 +5,6 @@ import { AuthRequest } from '../middleware/auth';
 import { successResponse, errorResponse } from '../utils/response';
 import { generateToken } from '../utils/jwt';
 import { RegisterStudentDto, RegisterUserDto, LoginDto } from '../types';
-import { Role } from '@prisma/client';
 
 export const registerStudent = async (req: AuthRequest, res: Response) => {
   try {
@@ -29,7 +28,7 @@ export const registerStudent = async (req: AuthRequest, res: Response) => {
         realName,
         phone,
         gender,
-        role: Role.STUDENT,
+        role: 'STUDENT',
         studentProfile: {
           create: {
             studentId: `S${Date.now()}`,
@@ -69,7 +68,7 @@ export const registerUser = async (req: AuthRequest, res: Response) => {
   try {
     const { username, email, password, realName, role, phone, gender } = req.body as RegisterUserDto;
 
-    const allowedRoles = [Role.TEACHER, Role.HEAD_TEACHER, Role.ADMIN, Role.PRINCIPAL] as Role[];
+    const allowedRoles = ['TEACHER', 'HEAD_TEACHER', 'ADMIN', 'PRINCIPAL'];
     if (!allowedRoles.includes(role)) {
       return errorResponse(res, '无效的角色类型', 400);
     }
@@ -94,11 +93,10 @@ export const registerUser = async (req: AuthRequest, res: Response) => {
       role,
     };
 
-    if (role === Role.TEACHER) {
+    if (role === 'TEACHER') {
       userData.teacherProfile = {
         create: {
           teacherId: `T${Date.now()}`,
-          specialties: [],
         },
       };
     }
@@ -149,11 +147,6 @@ export const login = async (req: AuthRequest, res: Response) => {
     if (!user.isActive) {
       return errorResponse(res, '账号已被禁用', 403);
     }
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
 
     const token = generateToken(user.id, user.role, user.username);
 

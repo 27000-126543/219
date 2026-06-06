@@ -1,16 +1,14 @@
 import prisma from '../config/prisma';
-import { NotificationType } from '@prisma/client';
-import { Server } from 'socket.io';
 
-let io: Server;
+let io: any;
 
-export const setSocketServer = (socketIo: Server) => {
+export const setSocketServer = (socketIo: any) => {
   io = socketIo;
 };
 
-export const createNotification = async (
+export const sendNotification = async (
   userId: string,
-  type: NotificationType,
+  type: string,
   title: string,
   content: string,
   data?: any
@@ -21,7 +19,7 @@ export const createNotification = async (
       type,
       title,
       content,
-      data,
+      data: data ? JSON.stringify(data) : undefined,
     },
   });
 
@@ -32,9 +30,11 @@ export const createNotification = async (
   return notification;
 };
 
+export const createNotification = sendNotification;
+
 export const createBulkNotifications = async (
   userIds: string[],
-  type: NotificationType,
+  type: string,
   title: string,
   content: string,
   data?: any
@@ -47,7 +47,7 @@ export const createBulkNotifications = async (
           type,
           title,
           content,
-          data,
+          data: data ? JSON.stringify(data) : undefined,
         },
       })
     )
@@ -55,7 +55,7 @@ export const createBulkNotifications = async (
 
   if (io) {
     userIds.forEach((userId) => {
-      io.to(`user:${userId}`).emit('notification', notifications.find(n => n.userId === userId));
+      io.to(`user:${userId}`).emit('notification', notifications.find((n) => n.userId === userId));
     });
   }
 

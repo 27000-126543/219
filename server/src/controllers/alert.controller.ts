@@ -2,247 +2,204 @@ import { Response } from 'express';
 import prisma from '../config/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { successResponse, errorResponse } from '../utils/response';
-import { AlertType, AlertStatus, NotificationType, Role } from '@prisma/client';
-import { createNotification } from '../services/notification.service';
-
-export const checkAndCreateAlerts = async (classId: string, studentId: string) => {
-  const attendanceRecords = await prisma.sessionAttendance.findMany({
-    where: {
-      studentId,
-      session: { classId },
-      isPresent: false,
-    },
-    orderBy: { session: { startTime: 'desc' } },
-    take: 3,
-  });
-
-  if (attendanceRecords.length >= 3) {
-    const existingAlert = await prisma.alert.findFirst({
-      where: {
-        studentId,
-        classId,
-        type: AlertType.ABSENTEEISM,
-        status: { in: [AlertStatus.PENDING, AlertStatus.HANDLED] },
-      },
-    });
-
-    if (!existingAlert) {
-      const class_ = await prisma.class.findUnique({
-        where: { id: classId },
-        include: { headTeacher: true, course: true },
-      });
-
-      const alert = await prisma.alert.create({
-        data: {
-          studentId,
-          classId,
-          type: AlertType.ABSENTEEISM,
-          title: '连续缺课预警',
-          description: `学生已连续3次缺课，请及时关注并沟通`,
-          severity: 'high',
-        },
-        include: {
-          student: { include: { user: true } },
-          class: { include: { headTeacher: true } },
-        },
-      });
-
-      if (class_?.headTeacherId) {
-        await createNotification(
-          class_.headTeacherId,
-          NotificationType.SCORE_ALERT,
-          '学生缺课预警',
-          `班级 "${class_.course?.name || class_.name}" 学生 "${alert.student.user.realName}" 已连续3次缺课`,
-          { alertId: alert.id, studentId, classId }
-        );
-      }
-    }
-  }
-
-  const recentScores = await prisma.assignmentSubmission.findMany({
-    where: {
-      studentId,
-      status: 'GRADED',
-      totalScore: { not: null },
-      assignment: { classId },
-    },
-    include: { assignment: true },
-    orderBy: { gradedAt: 'desc' },
-    take: 2,
-  });
-
-  if (recentScores.length >= 2) {
-    const [latest, previous] = recentScores;
-    const latestScore = latest.totalScore!;
-    const previousScore = previous.totalScore!;
-    const maxScore = latest.assignment.totalScore;
-    const dropPercent = ((previousScore - latestScore) / maxScore) * 100;
-
-    if (dropPercent >= 10) {
-      const existingAlert = await prisma.alert.findFirst({
-        where: {
-          studentId,
-          classId,
-          type: AlertType.SCORE_DROP,
-          status: { in: [AlertStatus.PENDING, AlertStatus.HANDLED] },
-        },
-      });
-
-      if (!existingAlert) {
-        const class_ = await prisma.class.findUnique({
-          where: { id: classId },
-          include: { headTeacher: true },
-        });
-
-        const alert = await prisma.alert.create({
-          data: {
-            studentId,
-            classId,
-            type: AlertType.SCORE_DROP,
-            title: '成绩下降预警',
-            description: `学生成绩下降超过10%，上次：${previousScore}分，本次：${latestScore}分`,
-            severity: 'medium',
-          },
-          include: {
-            student: { include: { user: true } },
-          },
-        });
-
-        if (class_?.headTeacherId) {
-          await createNotification(
-            class_.headTeacherId,
-            NotificationType.SCORE_ALERT,
-            '学生成绩预警',
-            `学生 "${alert.student.user.realName}" 成绩下降超过10%`,
-            { alertId: alert.id, studentId, classId }
-          );
-        }
-      }
-    }
-  }
-};
 
 export const getAlerts = async (req: AuthRequest, res: Response) => {
   try {
-    const { classId, studentId, status, type } = req.query;
+    const { studentId, status, type } = req.query;
     const where: any = {};
-    if (classId) where.classId = classId;
-    if (studentId) where.studentId = studentId;
-    if (status) where.status = status;
-    if (type) where.type = type;
+    if (studentId) where.studentId = studentId as string;
+    if (status) where.status = status as string;
+    if (type) where.type = type as string;
+
+    if (req.user?.role === 'HEAD_TEACHER') {
+      const classIds = (await prisma.class.findMany({ where: { headTeacherId: req.user.userId } })).map((c) => c.id);
+      if (classIds.length > 0) {
+        where.classId = { in: classIds };
+      }
+    }
 
     const alerts = await prisma.alert.findMany({
       where,
       include: {
         student: { include: { user: true } },
-        class: { include: { course: true } },
-        handler: true,
+        class: true,
       },
       orderBy: { createdAt: 'desc' },
     });
+
     return successResponse(res, alerts);
   } catch (error) {
     return errorResponse(res, '获取预警列表失败: ' + (error as Error).message, 500);
   }
 };
 
-export const handleAlert = async (req: AuthRequest, res: Response) => {
+export const getAlertById = async (req: AuthRequest, res: Response) => {
   try {
-    const { alertId } = req.params;
-    const userId = req.user?.userId;
-    const { handlingNote, status } = req.body;
-
-    const alert = await prisma.alert.update({
-      where: { id: alertId },
-      data: {
-        status: status || AlertStatus.HANDLED,
-        handlerId: userId,
-        handlingNote,
-        handledAt: new Date(),
-      },
+    const { id } = req.params;
+    const alert = await prisma.alert.findUnique({
+      where: { id },
       include: {
         student: { include: { user: true } },
         class: true,
+        handledBy: true,
       },
     });
 
-    return successResponse(res, alert, '预警已处理');
+    if (!alert) {
+      return errorResponse(res, '预警不存在', 404);
+    }
+
+    return successResponse(res, alert);
+  } catch (error) {
+    return errorResponse(res, '获取预警详情失败: ' + (error as Error).message, 500);
+  }
+};
+
+export const handleAlert = async (req: AuthRequest, res: Response) => {
+  try {
+    const { alertId } = req.params;
+    const { resolution, communicationNote } = req.body;
+
+    const alert = await prisma.alert.findUnique({ where: { id: alertId } });
+    if (!alert) {
+      return errorResponse(res, '预警不存在', 404);
+    }
+
+    const updated = await prisma.alert.update({
+      where: { id: alertId },
+      data: {
+        status: 'HANDLED',
+        resolution,
+        communicationNote,
+        handledAt: new Date(),
+        handledById: req.user!.userId,
+      },
+    });
+
+    return successResponse(res, updated, '预警处理成功');
   } catch (error) {
     return errorResponse(res, '处理预警失败: ' + (error as Error).message, 500);
   }
 };
 
-export const getClassStatistics = async (req: AuthRequest, res: Response) => {
+export const checkAbsenteeismAlerts = async (req: AuthRequest, res: Response) => {
   try {
-    const { classId } = req.params;
-
-    const class_ = await prisma.class.findUnique({
-      where: { id: classId },
+    const enrollments = await prisma.classEnrollment.findMany({
+      where: { status: 'CONFIRMED' },
       include: {
-        enrollments: { include: { student: { include: { user: true } } } },
-        liveSessions: true,
+        student: { include: { user: true } },
+        class: {
+          include: {
+            liveSessions: {
+              include: { attendanceRecords: true },
+              orderBy: { startTime: 'desc' },
+              take: 10,
+            },
+          },
+        },
       },
     });
 
-    if (!class_) {
-      return errorResponse(res, '班级不存在', 404);
-    }
+    const alertsCreated: any[] = [];
+    for (const enrollment of enrollments) {
+      const sessions = enrollment.class.liveSessions;
+      if (sessions.length >= 3) {
+        const consecutiveAbsent = sessions.slice(0, 3).every(
+          (session) => !session.attendanceRecords.some((r) => r.studentId === enrollment.studentId)
+        );
 
-    const totalSessions = class_.liveSessions.length;
-    const studentIds = class_.enrollments.filter(e => e.status === 'CONFIRMED').map(e => e.studentId);
+        if (consecutiveAbsent) {
+          const existing = await prisma.alert.findFirst({
+            where: {
+              studentId: enrollment.studentId,
+              classId: enrollment.classId,
+              type: 'ABSENTEEISM',
+              status: 'PENDING',
+            },
+          });
 
-    const attendanceRecords = await prisma.sessionAttendance.findMany({
-      where: { session: { classId }, studentId: { in: studentIds } },
-    });
-
-    const totalPossible = totalSessions * studentIds.length;
-    const totalAttended = attendanceRecords.filter(a => a.isPresent).length;
-    const attendanceRate = totalPossible > 0 ? (totalAttended / totalPossible) * 100 : 0;
-
-    const assignments = await prisma.assignment.findMany({
-      where: { classId },
-      include: { submissions: true },
-    });
-
-    const totalAssignments = assignments.length;
-    const totalSubmissions = assignments.reduce((sum, a) => sum + a.submissions.filter(s => s.status !== 'NOT_SUBMITTED').length, 0);
-    const totalPossibleSubmissions = totalAssignments * studentIds.length;
-    const submissionRate = totalPossibleSubmissions > 0 ? (totalSubmissions / totalPossibleSubmissions) * 100 : 0;
-
-    const gradedSubmissions = await prisma.assignmentSubmission.findMany({
-      where: {
-        assignment: { classId },
-        status: 'GRADED',
-        totalScore: { not: null },
-      },
-    });
-
-    const avgScore = gradedSubmissions.length > 0
-      ? gradedSubmissions.reduce((sum, s) => sum + s.totalScore!, 0) / gradedSubmissions.length
-      : 0;
-
-    const scoreTrend: any[] = [];
-    for (const studentId of studentIds) {
-      const studentSubmissions = gradedSubmissions.filter(s => s.studentId === studentId);
-      if (studentSubmissions.length > 0) {
-        scoreTrend.push({
-          studentId,
-          scores: studentSubmissions.map(s => s.totalScore),
-          avg: studentSubmissions.reduce((sum, s) => sum + s.totalScore!, 0) / studentSubmissions.length,
-        });
+          if (!existing) {
+            const alert = await prisma.alert.create({
+              data: {
+                studentId: enrollment.studentId,
+                classId: enrollment.classId,
+                type: 'ABSENTEEISM',
+                severity: 'HIGH',
+                description: `${enrollment.student.user.realName}连续3次缺课`,
+                message: '学生连续3次缺课，请及时联系家长了解情况',
+              },
+            });
+            alertsCreated.push(alert);
+          }
+        }
       }
     }
 
-    return successResponse(res, {
-      class: class_,
-      totalSessions,
-      totalStudents: studentIds.length,
-      attendanceRate,
-      submissionRate,
-      avgScore,
-      scoreTrend,
-    });
+    return successResponse(res, { created: alertsCreated.length, alerts: alertsCreated }, '考勤预警检查完成');
   } catch (error) {
-    return errorResponse(res, '获取班级统计失败: ' + (error as Error).message, 500);
+    return errorResponse(res, '检查考勤预警失败: ' + (error as Error).message, 500);
+  }
+};
+
+export const checkScoreAlerts = async (req: AuthRequest, res: Response) => {
+  try {
+    const students = await prisma.studentProfile.findMany({
+      include: {
+        user: true,
+        enrollments: {
+          include: {
+            class: true,
+            student: {
+              include: {
+                examGrades: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 2,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const alertsCreated: any[] = [];
+    for (const student of students) {
+      const grades = student.examGrades;
+      if (grades.length >= 2) {
+        const latest = grades[0];
+        const previous = grades[1];
+        if (latest.totalScore && previous.totalScore) {
+          const drop = previous.totalScore - latest.totalScore;
+          const dropPercent = (drop / previous.totalScore) * 100;
+
+          if (dropPercent > 10) {
+            const existing = await prisma.alert.findFirst({
+              where: {
+                studentId: student.id,
+                type: 'SCORE',
+                status: 'PENDING',
+              },
+            });
+
+            if (!existing) {
+              const alert = await prisma.alert.create({
+                data: {
+                  studentId: student.id,
+                  type: 'SCORE',
+                  severity: 'MEDIUM',
+                  description: `${student.user.realName}成绩下降${dropPercent.toFixed(1)}%`,
+                  message: '学生成绩明显下降，请关注并进行针对性辅导',
+                },
+              });
+              alertsCreated.push(alert);
+            }
+          }
+        }
+      }
+    }
+
+    return successResponse(res, { created: alertsCreated.length, alerts: alertsCreated }, '成绩预警检查完成');
+  } catch (error) {
+    return errorResponse(res, '检查成绩预警失败: ' + (error as Error).message, 500);
   }
 };

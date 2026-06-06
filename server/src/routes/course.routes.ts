@@ -1,23 +1,14 @@
 import { Router } from 'express';
-import {
-  createSubject,
-  getSubjects,
-  createCourse,
-  getCourses,
-  getCourseById,
-  getRecommendedCourses,
-} from '../controllers/course.controller';
+import { getSubjects, getCourses, getRecommendedCourses, getCourseById, createCourse, createSubject } from '../controllers/course.controller';
 import { authMiddleware, requireRoles } from '../middleware/auth';
-import { Role } from '@prisma/client';
 
 const router = Router();
 
-router.get('/subjects', authMiddleware, getSubjects);
-router.post('/subjects', authMiddleware, requireRoles(Role.ADMIN, Role.PRINCIPAL), createSubject);
-
-router.get('/recommended', authMiddleware, requireRoles(Role.STUDENT), getRecommendedCourses);
-router.get('/:id', authMiddleware, getCourseById);
-router.get('/', authMiddleware, getCourses);
-router.post('/', authMiddleware, requireRoles(Role.ADMIN, Role.TEACHER), createCourse);
+router.get('/subjects', getSubjects);
+router.get('/', getCourses);
+router.get('/recommended', authMiddleware, requireRoles('STUDENT'), getRecommendedCourses);
+router.get('/:id', getCourseById);
+router.post('/subjects', authMiddleware, requireRoles('ADMIN', 'PRINCIPAL'), createSubject);
+router.post('/', authMiddleware, requireRoles('ADMIN', 'TEACHER'), createCourse);
 
 export default router;

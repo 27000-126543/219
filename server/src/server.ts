@@ -5,10 +5,7 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cron from 'node-cron';
 import prisma from './config/prisma';
-import { setSocketServer } from './services/notification.service';
-import { sendClassReminders } from './controllers/live.controller';
-import { generateMonthlyTeacherPerformance } from './controllers/statistics.controller';
-import { checkAndCreateAlerts } from './controllers/alert.controller';
+import { setSocketServer, sendNotification } from './services/notification.service';
 
 import authRoutes from './routes/auth.routes';
 import courseRoutes from './routes/course.routes';
@@ -48,7 +45,7 @@ app.use('/api/assignments', assignmentRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/schedule-changes', scheduleRoutes);
-app.use('/api', statisticsRoutes);
+app.use('/api/statistics', statisticsRoutes);
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -68,53 +65,8 @@ io.on('connection', (socket) => {
   });
 });
 
-cron.schedule('*/5 * * * *', async () => {
-  console.log('Checking for upcoming classes to send reminders...');
-  const now = new Date();
-  const thirtyMinutesLater = new Date(now.getTime() + 30 * 60 * 1000);
-
-  const upcomingSessions = await prisma.liveSession.findMany({
-    where: {
-      startTime: {
-        gte: now,
-        lte: thirtyMinutesLater,
-      },
-      status: 'SCHEDULED',
-      remindersSent: false,
-    },
-  });
-
-  for (const session of upcomingSessions) {
-    await sendClassReminders(session.id);
-  }
-});
-
-cron.schedule('0 0 1 * *', async () => {
-  console.log('Generating monthly teacher performance reports...');
-  try {
-    await generateMonthlyTeacherPerformance();
-    console.log('Monthly performance reports generated successfully');
-  } catch (error) {
-    console.error('Error generating monthly performance reports:', error);
-  }
-});
-
-cron.schedule('0 0 * * *', async () => {
-  console.log('Checking for student alerts...');
-  const classes = await prisma.class.findMany({
-    where: { status: 'ACTIVE' },
-    include: { enrollments: { where: { status: 'CONFIRMED' } } },
-  });
-
-  for (const class_ of classes) {
-    for (const enrollment of class_.enrollments) {
-      try {
-        await checkAndCreateAlerts(class_.id, enrollment.studentId);
-      } catch (error) {
-        console.error(`Error checking alerts for student ${enrollment.studentId}:`, error);
-      }
-    }
-  }
+cron.schedule('*/30 * * * *', async () => {
+  console.log('Checking for upcoming classes...');
 });
 
 const PORT = process.env.PORT || 3001;

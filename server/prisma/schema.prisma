@@ -3,110 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum Role {
-  STUDENT
-  TEACHER
-  HEAD_TEACHER
-  ADMIN
-  PRINCIPAL
-}
-
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
-
-enum CourseLevel {
-  BEGINNER
-  INTERMEDIATE
-  ADVANCED
-  PROFESSIONAL
-}
-
-enum ClassStatus {
-  ACTIVE
-  FULL
-  COMPLETED
-  CANCELLED
-}
-
-enum EnrollmentStatus {
-  PENDING
-  CONFIRMED
-  WAITLISTED
-  CANCELLED
-  COMPLETED
-}
-
-enum SessionStatus {
-  SCHEDULED
-  LIVE
-  COMPLETED
-  CANCELLED
-  RESCHEDULED
-}
-
-enum AssignmentType {
-  ONLINE
-  UPLOAD
-  MIXED
-}
-
-enum SubmissionStatus {
-  NOT_SUBMITTED
-  SUBMITTED
-  GRADED
-  LATE
-}
-
-enum ExamStatus {
-  DRAFT
-  PUBLISHED
-  ONGOING
-  COMPLETED
-  GRADED
-}
-
-enum AlertType {
-  ABSENTEEISM
-  SCORE_DROP
-  BEHAVIOR
-  OTHER
-}
-
-enum AlertStatus {
-  PENDING
-  HANDLED
-  RESOLVED
-}
-
-enum NotificationType {
-  CLASS_REMINDER
-  SCORE_ALERT
-  SCHEDULE_CHANGE
-  REFUND_REQUEST
-  ASSIGNMENT_REMINDER
-  EXAM_REMINDER
-  WAITLIST_NOTIFICATION
-  SYSTEM_MESSAGE
-}
-
-enum ScheduleChangeStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  CANCELLED
-}
-
-enum SemesterStatus {
-  UPCOMING
-  ACTIVE
-  COMPLETED
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -117,45 +15,39 @@ model User {
   passwordHash  String
   realName      String
   avatar        String?
-  role          Role
-  gender        Gender?
-  birthDate     DateTime?
+  role          String
+  gender        String?
+  dateOfBirth   DateTime?
   address       String?
+  isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  lastLoginAt   DateTime?
-  isActive      Boolean   @default(true)
 
-  studentProfile   StudentProfile?
-  teacherProfile   TeacherProfile?
-  headTeacherClasses Class[] @relation("HeadTeacherClasses")
-  
-  notifications    Notification[]
-  scheduleChanges  ScheduleChange[] @relation("Applicant")
-  alertsHandled    Alert[]          @relation("AlertHandler")
+  studentProfile    StudentProfile?
+  teacherProfile    TeacherProfile?
 
-  @@map("users")
+  notifications     Notification[]
+  scheduleChanges   ScheduleChange[]  @relation("Applicant")
+
+  headTeacherClasses Class[] @relation("HeadTeacher")
 }
 
 model StudentProfile {
-  id               String   @id @default(uuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id])
-  studentId        String   @unique
-  age              Int?
-  grade            String?
-  school           String?
-  parentName       String?
-  parentPhone      String?
-  assessmentScore  Float?
-  enrollmentDate   DateTime @default(now())
-  totalClasses     Int      @default(0)
-  attendedClasses  Int      @default(0)
-  totalAssignments Int      @default(0)
-  submittedAssignments Int  @default(0)
-  averageScore     Float?
-  lastScore        Float?
-  
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId       String    @unique
+  age             Int?
+  grade           String?
+  school          String?
+  parentName      String?
+  parentPhone     String?
+  assessmentScore Int?
+  averageScore    Float?
+  enrollmentDate  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
   enrollments      ClassEnrollment[]
   submissions      AssignmentSubmission[]
   examSubmissions  ExamSubmission[]
@@ -163,172 +55,145 @@ model StudentProfile {
   alerts           Alert[]
   waitlistEntries  Waitlist[]
   sessionAttendances SessionAttendance[]
-
-  @@map("student_profiles")
 }
 
 model TeacherProfile {
-  id             String   @id @default(uuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id])
-  teacherId      String   @unique
-  bio            String?
-  specialties    Json?
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teacherId       String    @unique
+  bio             String?
+  specialties     String?
   yearsExperience Int?
-  certification  String?
-  hourlyRate     Float?
-  totalClasses   Int      @default(0)
+  certification   String?
   avgSatisfaction Float?
-  totalRatings   Int      @default(0)
-  conversionRate Float?
-  refundRate     Float?
-  
-  courses        Course[]
-  liveSessions   LiveSession[]
-  assignments    Assignment[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  classes       Class[]
+  liveSessions  LiveSession[]
+  assignments   Assignment[]
+  courses       Course[]
   gradedSubmissions AssignmentSubmission[] @relation("Grader")
   gradedExams    ExamSubmission[] @relation("ExamGrader")
-  classes        Class[]
+  examGrades     Exam[] @relation("ExamCreator")
   performances   TeacherPerformance[]
-
-  @@map("teacher_profiles")
 }
 
 model Subject {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
-  code        String   @unique
+  code        String    @unique
   description String?
   icon        String?
   color       String?
-  createdAt   DateTime @default(now())
-  isActive    Boolean  @default(true)
-  
-  courses     Course[]
-  classes     Class[]
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
 
-  @@map("subjects")
+  courses   Course[]
+  classes   Class[]
 }
 
 model Semester {
-  id          String         @id @default(uuid())
-  name        String
-  code        String         @unique
-  startDate   DateTime
-  endDate     DateTime
-  status      SemesterStatus @default(UPCOMING)
-  createdAt   DateTime       @default(now())
-  
+  id        String    @id @default(uuid())
+  name      String
+  code      String    @unique
+  startDate DateTime?
+  endDate   DateTime?
+  status    String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
   courses     Course[]
   classes     Class[]
   exams       Exam[]
   performances TeacherPerformance[]
-
-  @@map("semesters")
 }
 
 model Course {
-  id          String      @id @default(uuid())
+  id          String    @id @default(uuid())
   subjectId   String
-  subject     Subject     @relation(fields: [subjectId], references: [id])
-  semesterId  String?
-  semester    Semester?   @relation(fields: [semesterId], references: [id])
-  teacherId   String?
-  teacher     TeacherProfile? @relation(fields: [teacherId], references: [id])
+  subject     Subject   @relation(fields: [subjectId], references: [id])
+  semesterId  String
+  semester    Semester  @relation(fields: [semesterId], references: [id])
+  teacherId   String
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id])
   name        String
-  code        String      @unique
+  code        String    @unique
   description String?
-  level       CourseLevel
+  level       String
   minAge      Int?
   maxAge      Int?
-  totalSessions Int       @default(0)
+  totalSessions Int?
   price       Float?
-  popularity  Float       @default(0)
-  createdAt   DateTime    @default(now())
-  isActive    Boolean     @default(true)
-  
+  popularity  Int?      @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
   classes     Class[]
   assignments Assignment[]
   exams       Exam[]
-
-  @@map("courses")
 }
 
 model Class {
-  id             String      @id @default(uuid())
-  courseId       String
-  course         Course      @relation(fields: [courseId], references: [id])
-  subjectId      String
-  subject        Subject     @relation(fields: [subjectId], references: [id])
-  teacherId      String?
-  teacher        TeacherProfile? @relation(fields: [teacherId], references: [id])
-  headTeacherId  String?
-  headTeacher    User?     @relation("HeadTeacherClasses", fields: [headTeacherId], references: [id])
-  semesterId     String?
-  semester       Semester?   @relation(fields: [semesterId], references: [id])
-  name           String
-  code           String      @unique
-  status         ClassStatus @default(ACTIVE)
-  maxStudents    Int         @default(20)
-  currentStudents Int        @default(0)
-  classroom      String?
-  schedule       Json?
-  startDate      DateTime?
-  endDate        DateTime?
-  avgScore       Float?
-  renewalRate    Float?
-  createdAt      DateTime    @default(now())
-  
+  id              String    @id @default(uuid())
+  courseId        String
+  course          Course    @relation(fields: [courseId], references: [id])
+  subjectId       String
+  subject         Subject   @relation(fields: [subjectId], references: [id])
+  teacherId       String
+  teacher         TeacherProfile @relation(fields: [teacherId], references: [id])
+  headTeacherId   String?
+  headTeacher     User?     @relation("HeadTeacher", fields: [headTeacherId], references: [id])
+  semesterId      String
+  semester        Semester  @relation(fields: [semesterId], references: [id])
+  name            String
+  code            String    @unique
+  maxStudents     Int       @default(20)
+  currentStudents Int       @default(0)
+  status          String
+  classroom       String?
+  schedule        String?
+  startDate       DateTime?
+  endDate         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
   enrollments    ClassEnrollment[]
   liveSessions   LiveSession[]
   waitlist       Waitlist[]
   alerts         Alert[]
   assignments    Assignment[]
   exams          Exam[]
-
-  @@map("classes")
 }
 
 model ClassEnrollment {
-  id          String           @id @default(uuid())
-  classId     String
-  class       Class            @relation(fields: [classId], references: [id])
-  studentId   String
-  student     StudentProfile   @relation(fields: [studentId], references: [id])
-  status      EnrollmentStatus @default(CONFIRMED)
-  enrolledAt  DateTime         @default(now())
-  droppedAt   DateTime?
-  completionRate Float?
-  
+  id         String    @id @default(uuid())
+  classId    String
+  class      Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status     String
+  enrolledAt DateTime  @default(now())
+  droppedAt  DateTime?
+  notes      String?
+
   @@unique([classId, studentId])
-  @@map("class_enrollments")
 }
 
 model Waitlist {
-  id          String         @id @default(uuid())
-  classId     String
-  class       Class          @relation(fields: [classId], references: [id])
-  studentId   String
-  student     StudentProfile @relation(fields: [studentId], references: [id])
-  position    Int
-  addedAt     DateTime       @default(now())
-  notifiedAt  DateTime?
-  expiresAt   DateTime?
-  isActive    Boolean        @default(true)
+  id         String    @id @default(uuid())
+  classId    String
+  class      Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  position   Int
+  isActive   Boolean   @default(true)
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@unique([classId, studentId])
-  @@map("waitlists")
-}
-
-model Classroom {
-  id        String  @id @default(uuid())
-  name      String
-  code      String  @unique
-  capacity  Int
-  equipment Json?
-  isActive  Boolean @default(true)
-
-  @@map("classrooms")
 }
 
 model LiveSession {
@@ -341,7 +206,7 @@ model LiveSession {
   description   String?
   startTime     DateTime
   endTime       DateTime
-  status        SessionStatus @default(SCHEDULED)
+  status        String
   streamUrl     String?
   meetingId     String?
   recordingUrl  String?
@@ -351,247 +216,245 @@ model LiveSession {
   attendanceRecords SessionAttendance[]
   remindersSent   Boolean       @default(false)
   scheduleChanges ScheduleChange[]
-
-  @@map("live_sessions")
 }
 
 model SessionAttendance {
-  id          String      @id @default(uuid())
-  sessionId   String
-  session     LiveSession @relation(fields: [sessionId], references: [id])
-  studentId   String
-  student     StudentProfile @relation(fields: [studentId], references: [id])
-  joinedAt    DateTime?
-  leftAt      DateTime?
-  duration    Int         @default(0)
-  isPresent   Boolean     @default(false)
-  note        String?
+  id         String   @id @default(uuid())
+  sessionId  String
+  session    LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attended   Boolean  @default(false)
+  checkInTime DateTime?
+  createdAt  DateTime @default(now())
 
   @@unique([sessionId, studentId])
-  @@map("session_attendances")
+}
+
+model Classroom {
+  id        String  @id @default(uuid())
+  name      String
+  code      String  @unique
+  capacity  Int
+  equipment String?
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
 }
 
 model Assignment {
-  id           String         @id @default(uuid())
-  courseId     String?
-  course       Course?        @relation(fields: [courseId], references: [id])
-  classId      String?
-  class        Class?         @relation(fields: [classId], references: [id])
-  teacherId    String
-  teacher      TeacherProfile @relation(fields: [teacherId], references: [id])
-  title        String
-  description  String?
-  type         AssignmentType
-  totalScore   Float          @default(100)
-  dueDate      DateTime
-  createdAt    DateTime       @default(now())
-  
+  id            String   @id @default(uuid())
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id])
+  classId       String
+  class         Class    @relation(fields: [classId], references: [id])
+  teacherId     String
+  teacher       TeacherProfile @relation(fields: [teacherId], references: [id])
+  title         String
+  description   String?
+  type          String
+  totalScore    Int      @default(100)
+  dueDate       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   questions    AssignmentQuestion[]
   submissions  AssignmentSubmission[]
-
-  @@map("assignments")
 }
 
 model AssignmentQuestion {
-  id           String   @id @default(uuid())
-  assignmentId String
-  assignment   Assignment @relation(fields: [assignmentId], references: [id])
-  questionText String
-  questionType String
-  options      Json?
+  id            String   @id @default(uuid())
+  assignmentId  String
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  questionText  String
+  questionType  String
+  options       String?
   correctAnswer String?
-  score        Float    @default(10)
-  orderIndex   Int      @default(0)
-
-  @@map("assignment_questions")
+  score         Int      @default(10)
+  orderIndex    Int      @default(0)
+  createdAt     DateTime @default(now())
 }
 
 model AssignmentSubmission {
-  id           String         @id @default(uuid())
-  assignmentId String
-  assignment   Assignment     @relation(fields: [assignmentId], references: [id])
-  studentId    String
-  student      StudentProfile @relation(fields: [studentId], references: [id])
-  graderId     String?
-  grader       TeacherProfile? @relation("Grader", fields: [graderId], references: [id])
-  content      Json?
-  fileUrl      String?
-  submittedAt  DateTime?
-  status       SubmissionStatus @default(NOT_SUBMITTED)
-  objectiveScore Float?
-  subjectiveScore Float?
-  totalScore   Float?
-  feedback     String?
-  gradedAt     DateTime?
+  id            String   @id @default(uuid())
+  assignmentId  String
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  content       String?
+  fileUrl       String?
+  status        String
+  totalScore    Int?
+  feedback      String?
+  graderId      String?
+  grader        TeacherProfile? @relation("Grader", fields: [graderId], references: [id])
+  submittedAt   DateTime?
+  gradedAt      DateTime?
+  createdAt     DateTime @default(now())
 
-  @@unique([assignmentId, studentId])
-  @@map("assignment_submissions")
+  answers       AssignmentAnswer[]
+}
+
+model AssignmentAnswer {
+  id           String   @id @default(uuid())
+  submissionId String
+  submission   AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  questionId   String
+  answerText   String?
+  score        Int?
+  feedback     String?
+  createdAt    DateTime @default(now())
 }
 
 model Exam {
-  id          String      @id @default(uuid())
-  courseId    String?
-  course      Course?     @relation(fields: [courseId], references: [id])
-  classId     String?
-  class       Class?      @relation(fields: [classId], references: [id])
-  semesterId  String?
-  semester    Semester?   @relation(fields: [semesterId], references: [id])
-  name        String
-  description String?
-  examType    String
-  totalScore  Float       @default(100)
-  startTime   DateTime
-  endTime     DateTime
-  status      ExamStatus  @default(DRAFT)
-  createdAt   DateTime    @default(now())
-  
-  questions   ExamQuestion[]
-  submissions ExamSubmission[]
-  statistics  ExamStatistics?
+  id            String   @id @default(uuid())
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id])
+  classId       String
+  class         Class    @relation(fields: [classId], references: [id])
+  semesterId    String
+  semester      Semester @relation(fields: [semesterId], references: [id])
+  teacherId     String
+  teacher       TeacherProfile @relation("ExamCreator", fields: [teacherId], references: [id])
+  name          String
+  description   String?
+  examType      String
+  totalScore    Int      @default(100)
+  duration      Int?
+  startTime     DateTime?
+  endTime       DateTime?
+  status        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  @@map("exams")
+  questions     ExamQuestion[]
+  submissions   ExamSubmission[]
+  statistics    ExamStatistics?
 }
 
 model ExamQuestion {
-  id         String   @id @default(uuid())
-  examId     String
-  exam       Exam     @relation(fields: [examId], references: [id])
-  questionText String
-  questionType String
-  options    Json?
+  id            String   @id @default(uuid())
+  examId        String
+  exam          Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionText  String
+  questionType  String
+  options       String?
   correctAnswer String?
-  score      Float    @default(10)
-  orderIndex Int      @default(0)
-  correctRate Float?
-
-  @@map("exam_questions")
+  score         Int      @default(10)
+  orderIndex    Int      @default(0)
+  createdAt     DateTime @default(now())
 }
 
 model ExamSubmission {
-  id          String         @id @default(uuid())
-  examId      String
-  exam        Exam           @relation(fields: [examId], references: [id])
-  studentId   String
-  student     StudentProfile @relation(fields: [studentId], references: [id])
-  graderId    String?
-  grader      TeacherProfile? @relation("ExamGrader", fields: [graderId], references: [id])
-  answers     Json?
-  submittedAt DateTime?
-  gradedAt    DateTime?
-  score       Float?
-  feedback    String?
-
-  @@unique([examId, studentId])
-  @@map("exam_submissions")
+  id           String   @id @default(uuid())
+  examId       String
+  exam         Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers      String?
+  totalScore   Int?
+  feedback     String?
+  graderId     String?
+  grader       TeacherProfile? @relation("ExamGrader", fields: [graderId], references: [id])
+  submittedAt  DateTime?
+  gradedAt     DateTime?
+  createdAt    DateTime @default(now())
 }
 
 model ExamStatistics {
-  id            String  @id @default(uuid())
-  examId        String  @unique
-  exam          Exam    @relation(fields: [examId], references: [id])
-  avgScore      Float?
-  maxScore      Float?
-  minScore      Float?
-  passRate      Float?
-  questionStats Json?
-  suggestions   String?
-  generatedAt   DateTime @default(now())
-
-  @@map("exam_statistics")
-}
-
-model StudentProgress {
-  id          String         @id @default(uuid())
-  studentId   String
-  student     StudentProfile @relation(fields: [studentId], references: [id])
-  subjectId   String?
-  periodType  String
-  periodStart DateTime
-  periodEnd   DateTime
-  avgScore    Float
-  classCount  Int
-  assignmentCount Int
-  createdAt   DateTime       @default(now())
-
-  @@map("student_progress")
+  id             String   @id @default(uuid())
+  examId         String   @unique
+  exam           Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  avgScore       Float?
+  maxScore       Int?
+  minScore       Int?
+  passRate       Float?
+  questionStats  String?
+  suggestions    String?
+  createdAt      DateTime @default(now())
 }
 
 model Alert {
-  id          String         @id @default(uuid())
+  id          String   @id @default(uuid())
   studentId   String
-  student     StudentProfile @relation(fields: [studentId], references: [id])
-  classId     String?
-  class       Class?         @relation(fields: [classId], references: [id])
-  type        AlertType
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId     String
+  class       Class    @relation(fields: [classId], references: [id])
+  type        String
   title       String
-  description String
-  severity    String         @default("medium")
-  status      AlertStatus    @default(PENDING)
-  handlerId   String?
-  handler     User?          @relation("AlertHandler", fields: [handlerId], references: [id])
-  handlingNote String?
+  description String?
+  severity    String
+  status      String
+  handledBy   String?
+  handledNote String?
   handledAt   DateTime?
-  createdAt   DateTime       @default(now())
-
-  @@map("alerts")
-}
-
-model Notification {
-  id         String           @id @default(uuid())
-  userId     String
-  user       User             @relation(fields: [userId], references: [id])
-  type       NotificationType
-  title      String
-  content    String
-  data       Json?
-  isRead     Boolean          @default(false)
-  readAt     DateTime?
-  createdAt  DateTime         @default(now())
-
-  @@map("notifications")
+  createdAt   DateTime @default(now())
 }
 
 model ScheduleChange {
-  id               String              @id @default(uuid())
+  id               String    @id @default(uuid())
   sessionId        String?
-  session          LiveSession?        @relation(fields: [sessionId], references: [id])
+  session          LiveSession? @relation(fields: [sessionId], references: [id])
   originalClassId  String?
   newClassId       String?
   applicantId      String
-  applicant        User                @relation("Applicant", fields: [applicantId], references: [id])
+  applicant        User      @relation("Applicant", fields: [applicantId], references: [id])
   originalStartTime DateTime?
   originalEndTime   DateTime?
   newStartTime     DateTime?
   newEndTime       DateTime?
   classroom        String?
   reason           String
-  status           ScheduleChangeStatus @default(PENDING)
+  status           String
   reviewNote       String?
   reviewedBy       String?
   reviewedAt       DateTime?
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime  @default(now())
+}
 
-  @@map("schedule_changes")
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  content   String
+  data      String?
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model StudentProgress {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId   String?
+  periodType  String
+  periodStart DateTime
+  periodEnd   DateTime
+  avgScore    Float?
+  attendanceRate Float?
+  rank        Int?
+  notes       String?
+  createdAt   DateTime @default(now())
 }
 
 model TeacherPerformance {
-  id               String   @id @default(uuid())
-  teacherId        String
-  teacher          TeacherProfile @relation(fields: [teacherId], references: [id])
-  semesterId       String?
-  semester         Semester? @relation(fields: [semesterId], references: [id])
-  periodType       String
-  periodStart      DateTime
-  periodEnd        DateTime
-  classCompletionRate Float
+  id                  String   @id @default(uuid())
+  teacherId           String
+  teacher             TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  semesterId          String?
+  semester            Semester? @relation(fields: [semesterId], references: [id])
+  periodType          String
+  periodStart         DateTime
+  periodEnd           DateTime
+  rank                Int?
+  classCompletionRate Float?
   studentConversionRate Float?
-  refundRate       Float?
-  avgSatisfaction  Float?
-  totalClasses     Int
-  totalStudents    Int
-  avgScore         Float?
-  rank             Int?
-  createdAt        DateTime @default(now())
-
-  @@map("teacher_performances")
+  refundRate          Float?
+  avgSatisfaction     Float?
+  totalClasses        Int?
+  totalStudents       Int?
+  avgScore            Float?
+  createdAt           DateTime @default(now())
 }
