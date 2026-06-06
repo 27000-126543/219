@@ -1,0 +1,49 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f0f2f5;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.full-height {
+  height: 100vh;
+}
+
+.page-container {
+  padding: 24px;
+  min-height: calc(100vh - 64px);
+}
+
+.card-shadow {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02),
+    0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.stat-card {
+  text-align: center;
+  padding: 24px;
+}
+
+.stat-card .stat-number {
+  font-size: 32px;
+  font-weight: 600;
+  color: #1890ff;
+  margin-bottom: 8px;
+}
+
+.stat-card .stat-label {
+  color: #666;
+  font-size: 14px;
+}
